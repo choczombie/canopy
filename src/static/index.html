@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canopy Legal | Commonwealth & State Legislation Platform</title>
+  
+  <!-- Google Fonts: Inter (UI & Hierarchy), Source Serif 4 (Provisions), JetBrains Mono (Numbers) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Favicons -->
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  
+  <link rel="stylesheet" href="/static/style.css?v=canopy_v16_legacy_opinions">
+</head>
+<body>
+  <div id="app" class="app-container">
+    
+    <!-- Fixed Global App Header -->
+    <header class="top-header" id="app-header">
+      <div class="header-left">
+        <a href="#/" class="brand-logo" id="brand-home-link" title="Canopy Legal Homepage">
+          <div class="brand-icon">
+            <img src="/static/logo/canopy_logo_mint.png" alt="Canopy Logo" class="brand-icon-img" />
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">Canopy Legal</span>
+            <span class="brand-tag">Legislation & Caselaw</span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Unified 3-Part Search Cluster -->
+      <div class="search-cluster" id="search-cluster">
+        <div class="search-input-group omnibox-group">
+          <i data-lucide="search" class="cluster-icon"></i>
+          <input type="search" id="omnibox-input" class="cluster-input omnibox-input" placeholder="Search provisions, case names, citations, or keywords... (Ctrl+K)" autocomplete="off" spellcheck="false" />
+          <button id="omnibox-clear-btn" class="omnibox-clear-btn" title="Clear search" style="display: none;" onclick="app.clearOmniboxInput()"><i data-lucide="x" style="width: 14px; height: 14px;"></i></button>
+        </div>
+        <div class="search-input-group pinpoint-group" title="Jump directly to Section number (e.g. 110, r 20) or Lawpart Code (e.g. 74123)">
+          <input type="text" id="pinpoint-input" class="cluster-input pinpoint-input" placeholder="s # / LPC" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="search-input-group scope-group">
+          <select id="search-scope-select" class="scope-dropdown" title="Search Scope">
+            <optgroup label="Broad Scopes">
+              <option value="all" selected>All Sources</option>
+              <option value="legislation">All Legislation</option>
+              <option value="caselaw">All Caselaw</option>
+            </optgroup>
+            <optgroup label="New South Wales">
+              <option value="nsw-acts">NSW Acts</option>
+              <option value="nsw-regs">NSW Regulations</option>
+              <option value="nsw-caselaw">NSW Decisions</option>
+            </optgroup>
+            <optgroup label="Commonwealth">
+              <option value="cth-acts">Cth Acts</option>
+              <option value="cth-regs">Cth Regulations</option>
+            </optgroup>
+          </select>
+        </div>
+        <button id="search-exec-btn" class="search-exec-btn" title="Search or jump (Enter)">
+          <i data-lucide="arrow-right"></i>
+        </button>
+        <!-- Autocomplete Flyout -->
+        <div id="omnibox-flyout" class="omnibox-flyout" style="display: none;"></div>
+      </div>
+
+      <!-- Global Utilities -->
+      <div class="header-right">
+        <a href="#/browse/legislation" class="header-nav-link" id="nav-browse-leg-btn" title="Browse all Acts and Regulations">
+          <i data-lucide="layers"></i>
+          <span>Legislation</span>
+        </a>
+        <a href="#/browse/caselaw" class="header-nav-link" id="nav-browse-case-btn" title="Browse all Judicial Decisions">
+          <i data-lucide="gavel"></i>
+          <span>Caselaw</span>
+        </a>
+        <a href="https://lpcgoweb.lpcgo.workers.dev/" target="_blank" rel="noopener noreferrer" class="util-btn lpcgo-btn" title="Open LPCGo Lawpart Code Search Tool (Opens in new tab)">
+          <i data-lucide="external-link"></i>
+          <span>LPCGo</span>
+        </a>
+        <span id="auth-status-container" style="display: inline-flex; align-items: center;"></span>
+        <button id="typography-btn" class="icon-btn" title="Reading preferences">
+          <i data-lucide="type"></i>
+        </button>
+        <button id="theme-toggle-btn" class="icon-btn" title="Toggle theme">
+          <i data-lucide="moon" id="theme-icon"></i>
+        </button>
+        <button id="shortcuts-btn" class="icon-btn" title="Keyboard shortcuts (?)">
+          <i data-lucide="help-circle"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <div class="workspace" id="workspace-container">
+      
+      <!-- Left Sidebar: NSW-Style Collapsible Tree / Caselaw List -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-search">
+            <i data-lucide="filter"></i>
+            <input type="text" id="toc-filter-input" placeholder="Filter sections, parts or keywords..." />
+          </div>
+          <div class="tree-controls">
+            <div class="tree-btn-group">
+              <button id="expand-all-btn" class="tree-btn" title="Expand all nodes">Expand all</button>
+              <button id="collapse-all-btn" class="tree-btn" title="Collapse all nodes">Collapse all</button>
+            </div>
+            <span id="tree-stats-badge" class="tree-stats-badge"></span>
+          </div>
+        </div>
+
+        <div class="tree-container" id="tree-container">
+          <div class="loading-spinner">
+            <i data-lucide="loader-2" class="spin"></i>
+            <span>Loading legislative hierarchy...</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Sidebar Resize Divider -->
+      <div class="resize-handle" id="resize-handle"></div>
+
+      <!-- Center Content Pane: Legal Text Reader -->
+      <main class="content-pane" id="content-pane">
+        
+        <!-- Contextual Sub-Toolbar (Active only in Workspace Mode) -->
+        <div class="context-subbar" id="context-subbar" style="display: none;">
+          <div class="breadcrumbs" id="breadcrumbs">
+            <span class="crumb root">Act</span>
+          </div>
+          <div class="subbar-actions">
+            <button id="toggle-sidebar-btn" class="subbar-btn" title="Toggle Table of Contents Index">
+              <i data-lucide="panel-left"></i>
+              <span id="toggle-sidebar-label">TOC Rail</span>
+            </button>
+            <a id="source-link-btn" class="subbar-btn" target="_blank" rel="noopener noreferrer" href="#" title="Open official source website in a new tab">
+              <i data-lucide="external-link"></i>
+              <span>Source Link</span>
+            </a>
+            <button id="print-current-btn" class="subbar-btn" title="Print this section or view">
+              <i data-lucide="printer"></i>
+              <span>Print View</span>
+            </button>
+            <label class="subbar-checkbox-label" id="print-intel-wrap" title="Include Section Intelligence (Penalties, Caselaw, and Notes) in print view" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; user-select: none; padding: 2px 6px; border: 1px solid var(--border-subtle); border-radius: 4px; background: var(--bg-surface);">
+              <input type="checkbox" id="print-intel-checkbox" style="cursor: pointer; accent-color: var(--border-active);" onchange="app.togglePrintIntelligence(this.checked)" />
+              <span>+ Intel</span>
+            </label>
+            <button id="find-in-reader-btn" class="subbar-btn" title="Find in Text (Ctrl+F)" onclick="app.openReaderFindBar()">
+              <i data-lucide="search"></i>
+              <span>Find</span>
+            </button>
+            <button id="copy-citation-btn" class="subbar-btn" title="Copy formal citation to clipboard">
+              <i data-lucide="copy"></i>
+              <span>Copy Citation</span>
+            </button>
+            <button id="toggle-info-btn" class="subbar-btn info-btn" title="Toggle section intelligence, penalties & commentary pane">
+              <i data-lucide="info"></i>
+              <span>Penalties & Info</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- In-Reader Find Floating Toolbar -->
+        <div class="reader-find-bar" id="reader-find-bar" style="display: none;">
+          <div class="find-bar-inner">
+            <div class="find-input-wrap">
+              <i data-lucide="search" class="find-icon" style="width: 14px; height: 14px;"></i>
+              <input type="text" id="reader-find-input" placeholder="Find in document..." autocomplete="off" spellcheck="false" />
+              <button type="button" class="find-clear-btn" id="reader-find-clear-btn" title="Clear search text" style="display: none;">
+                <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+              </button>
+            </div>
+
+            <div class="find-options">
+              <button type="button" class="find-opt-btn" id="reader-find-case-btn" title="Match Case (Alt+C)" onclick="app.toggleFindOption('case')">Aa</button>
+              <button type="button" class="find-opt-btn" id="reader-find-word-btn" title="Match Whole Word (Alt+W)" onclick="app.toggleFindOption('word')">\b</button>
+            </div>
+
+            <div class="find-status" id="reader-find-status">
+              <span class="find-counter" id="reader-find-counter">0 of 0</span>
+              <span class="find-pinpoint" id="reader-find-pinpoint" style="display: none;"></span>
+            </div>
+
+            <div class="find-nav-buttons">
+              <button type="button" class="find-nav-btn" id="reader-find-prev-btn" title="Previous Match (Shift+Enter, ↑)" onclick="app.navigateReaderFind(-1)">
+                <i data-lucide="chevron-up" style="width: 14px; height: 14px;"></i>
+              </button>
+              <button type="button" class="find-nav-btn" id="reader-find-next-btn" title="Next Match (Enter, ↓)" onclick="app.navigateReaderFind(1)">
+                <i data-lucide="chevron-down" style="width: 14px; height: 14px;"></i>
+              </button>
+            </div>
+
+            <div class="find-divider"></div>
+
+            <button type="button" class="find-close-btn" id="reader-find-close-btn" title="Close Find Bar (Escape)" onclick="app.closeReaderFindBar()">
+              <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Reader Container -->
+        <div class="reader-container" id="reader-container">
+          <div class="reader-welcome">
+            <div class="welcome-card">
+              <div class="welcome-icon"><i data-lucide="book-open"></i></div>
+              <h2>Select any Chapter, Part or Section to read</h2>
+              <p>Click on any heading in the table of contents to view its entire contents continuously, or select individual sections for focused reading.</p>
+              <div class="quick-links">
+                <span class="quick-title">Quick Jumps:</span>
+                <button class="quick-chip" onclick="app.navigateTo('australian-consumer-law', 'chapter-1')">Chapter 1 (Clauses 1–17)</button>
+                <button class="quick-chip" onclick="app.navigateTo('australian-consumer-law', 'part-2-1')">Part 2-1 (Misleading/Deceptive)</button>
+                <button class="quick-chip" onclick="app.navigateTo('australian-consumer-law', '18')">Section 18</button>
+                <button class="quick-chip" onclick="app.navigateTo('australian-consumer-law', '23')">Section 23 (Unfair Terms)</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Navigation (Prev / Next Provision) -->
+        <footer class="reader-footer" id="reader-footer" style="display: none;">
+          <button id="prev-prov-btn" class="nav-btn prev">
+            <i data-lucide="chevron-left"></i>
+            <span class="nav-text">
+              <small>Previous</small>
+              <strong id="prev-prov-label">17</strong>
+            </span>
+          </button>
+          <div class="nav-center">
+            <span id="current-compilation-tag" class="compilation-tag">Compilation in force</span>
+          </div>
+          <button id="next-prov-btn" class="nav-btn next">
+            <span class="nav-text">
+              <small>Next</small>
+              <strong id="next-prov-label">19</strong>
+            </span>
+            <i data-lucide="chevron-right"></i>
+          </button>
+        </footer>
+      </main>
+
+      <!-- Right Sidebar: Section Intelligence & Penalties Pane -->
+      <aside class="info-pane" id="info-pane" style="display: none;">
+        <div class="info-pane-header">
+          <div class="info-header-top">
+            <div class="info-title-wrap">
+              <i data-lucide="shield-alert" class="info-icon" id="info-pane-icon"></i>
+              <span class="info-title" id="info-pane-title">Section Intelligence</span>
+            </div>
+            <button id="close-info-pane-btn" class="close-btn" title="Close Pane"><i data-lucide="x"></i></button>
+          </div>
+          <div class="info-meta-row">
+            <span id="info-section-tag" class="info-badge-tag">s --</span>
+            <span id="info-db-tag" class="info-db-tag">JudCom Lawparts</span>
+          </div>
+          
+          <!-- Pane Tabs -->
+          <div class="info-pane-tabs" id="info-pane-tabs">
+            <button class="info-tab active" data-tab="lawparts" onclick="app.switchInfoTab('lawparts')">
+              <i data-lucide="scale"></i> Penalties & Lawparts
+            </button>
+            <button class="info-tab" data-tab="commentary" onclick="app.switchInfoTab('commentary')">
+              <i data-lucide="file-text"></i> Commentary
+            </button>
+            <button class="info-tab" data-tab="caselaw" onclick="app.switchInfoTab('caselaw')">
+              <i data-lucide="gavel"></i> Caselaw
+            </button>
+          </div>
+        </div>
+
+        <div class="info-pane-body" id="info-pane-body">
+          <!-- Lawparts Tab Content -->
+          <div class="info-tab-panel active" id="panel-lawparts">
+            <div id="info-lawparts-container">
+              <div class="info-empty-state">
+                <i data-lucide="info"></i>
+                <p>Select any section to view Judicial Commission penalty codes, gaol terms, disqualifications, and demerits.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Commentary Tab Content -->
+          <div class="info-tab-panel" id="panel-commentary" style="display: none;">
+            <div id="info-commentary-container" class="commentary-content">
+              <div class="commentary-box">
+                <h4><i data-lucide="book-open"></i> Statutory Purpose & Context</h4>
+                <p id="commentary-text">Select a statutory section to load practitioner notes and interpretation guidance.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Caselaw Tab Content -->
+          <div class="info-tab-panel" id="panel-caselaw" style="display: none;">
+            <div id="info-caselaw-container">
+              <div class="caselaw-list">
+                <div class="info-empty-state">
+                  <i data-lucide="gavel"></i>
+                  <p>Cited caselaw authorities and sentencing guidelines for this section will appear here.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- Search Modal (Ctrl+K) -->
+    <div class="modal-overlay" id="search-modal" style="display: none;">
+      <div class="modal-dialog search-modal-dialog">
+        <div class="search-input-wrapper">
+          <i data-lucide="search" class="search-icon"></i>
+          <input type="text" id="global-search-input" placeholder="Search statutory text, section numbers, or legal terms..." autocomplete="off" />
+          <button id="close-search-btn" class="close-btn"><i data-lucide="x"></i></button>
+        </div>
+        
+        <div class="search-options-bar">
+          <div class="search-filters">
+            <span class="filter-label">Scope:</span>
+            <label class="filter-radio">
+              <input type="radio" name="search-scope" value="current" checked>
+              <span id="search-scope-label">Current Act</span>
+            </label>
+            <label class="filter-radio">
+              <input type="radio" name="search-scope" value="all">
+              <span>All Acts</span>
+            </label>
+          </div>
+          <span id="search-status-text" class="search-status">Type to search FTS5 index...</span>
+        </div>
+
+        <div class="search-results-list" id="search-results-list">
+          <div class="search-placeholder">
+            <p>Try searching for <span class="badge-chip">"misleading or deceptive"</span>, <span class="badge-chip">"cartel conduct"</span>, or <span class="badge-chip">"unfair terms"</span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Typography Preferences Popover -->
+    <div class="popover" id="typography-popover" style="display: none;">
+      <h4>Typography & Reading</h4>
+      <div class="popover-row">
+        <span>Font Size</span>
+        <div class="btn-group">
+          <button class="size-btn" data-size="small">A-</button>
+          <button class="size-btn active" data-size="medium">A</button>
+          <button class="size-btn" data-size="large">A+</button>
+        </div>
+      </div>
+      <div class="popover-row">
+        <span>Line Width</span>
+        <div class="btn-group">
+          <button class="width-btn" data-width="compact">Compact</button>
+          <button class="width-btn active" data-width="normal">Standard</button>
+          <button class="width-btn" data-width="wide">Wide</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statute Selector Popover (Acts & Regulations) -->
+    <div class="popover statute-directory-popover" id="statute-popover" style="display: none;">
+      <div class="statute-popover-header">
+        <div class="popover-title-row">
+          <h4>Acts & Regulations Directory</h4>
+          <button id="close-statute-popover-btn" class="close-btn"><i data-lucide="x"></i></button>
+        </div>
+        <div class="statute-filter-row">
+          <i data-lucide="search" class="filter-icon"></i>
+          <input type="text" id="statute-filter-input" placeholder="Filter by title, topic, or jurisdiction..." />
+        </div>
+        <div class="statute-tabs">
+          <button class="statute-filter-tab active" data-filter="all">All Statutes</button>
+          <button class="statute-filter-tab" data-filter="act">Acts</button>
+          <button class="statute-filter-tab" data-filter="regulation">Regulations</button>
+        </div>
+      </div>
+      <div class="statute-list" id="statute-list">
+        <!-- Dynamically rendered by app.js -->
+      </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal (?) -->
+    <div class="modal-overlay" id="shortcuts-modal" style="display: none;">
+      <div class="modal-dialog shortcuts-dialog">
+        <div class="shortcuts-header">
+          <div class="shortcuts-title-wrap">
+            <i data-lucide="keyboard"></i>
+            <h3>Keyboard Navigation & Shortcuts</h3>
+          </div>
+          <button id="close-shortcuts-btn" class="close-btn"><i data-lucide="x"></i></button>
+        </div>
+        <div class="shortcuts-body">
+          <div class="shortcut-row"><span class="shortcut-desc">Focus Omnibox Search</span><kbd>Ctrl + K</kbd> / <kbd>Cmd + K</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Find in Text / In-Reader Search</span><kbd>Ctrl + F</kbd> / <kbd>Cmd + F</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Close Modals / Popovers / Find Bar</span><kbd>Esc</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Next / Previous Provision</span><kbd>Alt + →</kbd> / <kbd>Alt + ←</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Toggle Dark / Light Theme</span><kbd>Alt + T</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Toggle Table of Contents Rail</span><kbd>Alt + [</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Toggle Penalties & Info Rail</span><kbd>Alt + ]</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-desc">Return to Home Portal</span><kbd>Alt + H</kbd></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Commentary Authoring Modal (Phase C6) -->
+    <div class="modal-overlay" id="commentary-modal" style="display: none;">
+      <div class="modal-dialog commentary-modal-dialog">
+        <div class="commentary-modal-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="edit-3" style="width: 16px; height: 16px; color: var(--border-active);"></i>
+            <h3 id="commentary-modal-title" style="font-size: 0.9375rem; font-weight: 700; margin: 0; color: var(--text-primary);">Add Legal Commentary</h3>
+          </div>
+          <button class="close-btn" onclick="app.closeCommentaryModal()"><i data-lucide="x"></i></button>
+        </div>
+        <div class="commentary-modal-body">
+          <!-- Target Info Banner -->
+          <div class="commentary-target-banner" id="commentary-target-banner">
+            Target: <strong id="commentary-target-label">--</strong>
+          </div>
+
+          <!-- Scope Radio Selector -->
+          <div class="form-row-group">
+            <label class="form-label">Scope</label>
+            <div style="display: flex; gap: 16px; align-items: center;">
+              <label class="radio-label">
+                <input type="radio" name="comm-scope" value="document" id="comm-scope-doc" checked onchange="app.handleCommentaryScopeChange()" />
+                <span id="comm-scope-doc-label">Entire Document / Case</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="comm-scope" value="paragraph" id="comm-scope-para" onchange="app.handleCommentaryScopeChange()" />
+                <span id="comm-scope-para-label">Specific Paragraph(s)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Paragraph Range Inputs (shown if paragraph scope selected) -->
+          <div class="form-row-group" id="comm-para-inputs-row" style="display: none;">
+            <label class="form-label">Paragraph Pinpoint</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span style="font-size: 0.8125rem; color: var(--text-secondary);">From [</span>
+              <input type="number" id="comm-para-start" min="1" placeholder="1" style="width: 70px;" class="form-input" oninput="app.updateLivePreview()" />
+              <span style="font-size: 0.8125rem; color: var(--text-secondary);">] to [</span>
+              <input type="number" id="comm-para-end" min="1" placeholder="Optional" style="width: 70px;" class="form-input" oninput="app.updateLivePreview()" />
+              <span style="font-size: 0.8125rem; color: var(--text-secondary);">]</span>
+            </div>
+          </div>
+
+          <!-- Tier & Author Inputs -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 0.85rem;">
+            <div class="form-row-group" style="margin-bottom: 0;">
+              <label class="form-label">Commentary Tier</label>
+              <select id="comm-tier-select" class="form-input">
+                <option value="practitioner">📝 Practitioner Note</option>
+                <option value="moderator">⚖️ Moderator Practice Note</option>
+                <option value="ai">🤖 AI Notation</option>
+              </select>
+            </div>
+            <div class="form-row-group" style="margin-bottom: 0;">
+              <label class="form-label">Author Name</label>
+              <input type="text" id="comm-author-input" class="form-input" placeholder="e.g. Nick C. or Senior Counsel" value="Practitioner" />
+            </div>
+          </div>
+
+          <!-- Title Input -->
+          <div class="form-row-group">
+            <label class="form-label">Headline / Title</label>
+            <input type="text" id="comm-title-input" class="form-input" placeholder="e.g. Ratio on Disturbance and Set-off under s 55" />
+          </div>
+
+          <!-- Body Textarea with Markdown & Citation Hint -->
+          <div class="form-row-group">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+              <label class="form-label" style="margin-bottom: 0;">Commentary Body (Markdown)</label>
+              <span style="font-size: 0.6875rem; color: var(--text-muted);">Supports [12], RTA s 53, RR r 20, [2014] NSWCA 161, LPC 79007</span>
+            </div>
+            <textarea id="comm-body-input" class="form-textarea" rows="4" placeholder="Enter practitioner analysis... Citations like RTA s 53, [12], or [2014] NSWCA 161 will be automatically hyperlinked." oninput="app.updateLivePreview()"></textarea>
+          </div>
+
+          <!-- Live Preview & Detected Citations Bar -->
+          <div class="comm-live-preview-box" id="comm-live-preview-box" style="display: none;">
+            <div class="comm-preview-header">
+              <span><i data-lucide="eye" style="width: 12px; height: 12px; vertical-align: middle;"></i> Live Citation Link Preview</span>
+              <span id="comm-detected-count" style="font-size: 0.6875rem; font-weight: 600; color: #047857;">0 citations detected</span>
+            </div>
+            <div id="comm-preview-content" class="comm-preview-content"></div>
+          </div>
+        </div>
+
+        <div class="commentary-modal-footer">
+          <button class="action-btn" onclick="app.closeCommentaryModal()">Cancel</button>
+          <button class="action-btn btn-primary" id="comm-save-btn" onclick="app.saveCommentary()">
+            <i data-lucide="check" style="width: 13px; height: 13px;"></i>
+            <span>Save & Publish Note</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/static/app.js?v=canopy_v17_layout_pages"></script>
+</body>
+</html>

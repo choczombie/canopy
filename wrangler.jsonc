@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/wrangler@latest/config-schema.json",
+  "name": "canopy",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-06-26",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB_ANNOTATIONS",
+      "database_name": "canopy-annotations",
+      "database_id": "ebce3e85-e745-4b1c-b569-c763716a75bb"
+    },
+    {
+      "binding": "DB_REF",
+      "database_name": "canopy-reference",
+      "database_id": "ec555ed5-9157-47a3-a2ab-af71f71c4aaf"
+    }
+  ]
+}
+

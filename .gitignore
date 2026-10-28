@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+*.swp
+*.bak
+.DS_Store
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+node_modules/
+.wrangler/
+dist/
+
+# SQLite databases and WAL/journal files (exceed GitHub 100MB limit; synced via scripts/sync_cloud.py)
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+

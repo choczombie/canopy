@@ -1,0 +1,17 @@
+{
+  "name": "canopy",
+  "version": "0.9.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "export": "py scripts/sync_cloud.py export",
+    "backup": "py scripts/sync_cloud.py backup-annotations",
+    "sync:annotations": "py scripts/sync_cloud.py sync-annotations",
+    "deploy": "py scripts/sync_cloud.py deploy",
+    "cf:dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.105.0"
+  }
+}
+

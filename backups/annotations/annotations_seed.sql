@@ -1,0 +1,74 @@
+-- Canopy Legal: Annotations D1 Seed & Sync File
+-- Commentary and Annotations Protected Store
+-- SQLite Schema for data/annotations.db
+
+CREATE TABLE IF NOT EXISTS commentary (
+    id TEXT PRIMARY KEY,                       -- UUID v4 string
+    target_type TEXT NOT NULL,                 -- 'case', 'case_paragraph', 'provision', 'offence'
+    target_id TEXT NOT NULL,                   -- Canonical ID (e.g. '2014-nswca-161', 'road-transport-act-2013:s53')
+    target_paragraph_start INTEGER,            -- NULL for case/provision; integer for paragraph
+    target_paragraph_end INTEGER,              -- Same as start for single para; higher for range
+    author_tier TEXT NOT NULL,                 -- 'moderator', 'practitioner', 'ai'
+    author_id TEXT NOT NULL,                   -- User ID / 'system' / 'editorial_board'
+    author_name TEXT NOT NULL,                 -- Display name (e.g. 'Nick C.', 'Editorial Board')
+    author_role TEXT,                          -- e.g. 'Barrister', 'Solicitor', 'AI Notation'
+    title TEXT NOT NULL,                       -- Commentary headline
+    body_markdown TEXT NOT NULL,               -- Raw markdown containing [N] and citations
+    body_html TEXT NOT NULL,                   -- Sanitized, pre-compiled HTML with resolved links
+    visibility TEXT DEFAULT 'public',          -- 'private', 'team', 'public'
+    status TEXT DEFAULT 'active',              -- 'active', 'archived', 'flagged'
+    version INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_commentary_target 
+    ON commentary(target_type, target_id, target_paragraph_start);
+
+CREATE INDEX IF NOT EXISTS idx_commentary_author 
+    ON commentary(author_id, visibility);
+
+CREATE INDEX IF NOT EXISTS idx_commentary_tier 
+    ON commentary(author_tier);
+
+CREATE TABLE IF NOT EXISTS commentary_citations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    commentary_id TEXT NOT NULL REFERENCES commentary(id) ON DELETE CASCADE,
+    citation_type TEXT NOT NULL,               -- 'case', 'statute', 'regulation', 'offence'
+    cited_target_id TEXT NOT NULL,             -- Target ID / URL slug
+    raw_text TEXT NOT NULL,                    -- Raw citation snippet (e.g. '[2014] NSWCA 161' or 'RTA s 53')
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_citations_target 
+    ON commentary_citations(citation_type, cited_target_id);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS commentary_fts USING fts5(
+    commentary_id UNINDEXED,
+    title,
+    body_markdown,
+    author_name,
+    tokenize = 'porter unicode61'
+);
+
+DELETE FROM commentary_fts;
+DELETE FROM commentary_citations;
+INSERT OR REPLACE INTO commentary (id, target_type, target_id, target_paragraph_start, target_paragraph_end, author_tier, author_id, author_name, author_role, title, body_markdown, body_html, visibility, status, version, created_at, updated_at) VALUES ('comm-lakeman-v-commissioner-of-police-new-south-wales-police-service-2001-nswadt-128-1', 'case', 'lakeman-v-commissioner-of-police-new-south-wales-police-service-2001-nswadt-128', 1, 1, 'practitioner', 'editor_1', 'Senior Practitioner', NULL, 'Exceptional Circumstances Analysis under s 268(5)', 'In <a href="javascript:void(0)" onclick="scrollToParagraph(1, 1)" class="para-badge">[1]</a>, the applicant sought review of a 3-month driver licence suspension. The Tribunal considered the meaning of **exceptional circumstances** under the predecessor provisions to s 268(5) of the *Road Transport Act 2013* (NSW). See also discussion in paragraphs <a href="javascript:void(0)" onclick="scrollToParagraph(15, 22)" class="para-badge">[15]-[22]</a> regarding hardship and prior record.', '<p>In <a href="javascript:void(0)" onclick="scrollToParagraph(1, 1)" class="para-badge"><a href="#para-1" class="para-jump-link" data-jump-start="1" onclick="app.jumpToParagraph(1)" title="Jump to paragraph [1] in reader">[1]</a></a>, the applicant sought review of a 3-month driver licence suspension. The Tribunal considered the meaning of <strong>exceptional circumstances</strong> under the predecessor provisions to s 268(5) of the <em>Road Transport Act 2013</em> (NSW). See also discussion in paragraphs <a href="javascript:void(0)" onclick="scrollToParagraph(15, 22)" class="para-badge"><a href="#para-15" class="para-jump-link" data-jump-start="15" data-jump-end="22" onclick="app.jumpToParagraph(15, 22)" title="Jump to paragraphs <a href="#para-15" class="para-jump-link" data-jump-start="15" onclick="app.jumpToParagraph(15)" title="Jump to paragraph [15] in reader">[15]</a>-<a href="#para-22" class="para-jump-link" data-jump-start="22" onclick="app.jumpToParagraph(22)" title="Jump to paragraph [22] in reader">[22]</a> in reader"><a href="#para-15" class="para-jump-link" data-jump-start="15" onclick="app.jumpToParagraph(15)" title="Jump to paragraph [15] in reader">[15]</a>–<a href="#para-22" class="para-jump-link" data-jump-start="22" onclick="app.jumpToParagraph(22)" title="Jump to paragraph [22] in reader">[22]</a></a></a> regarding hardship and prior record.</p>', 'public', 'active', 1, '2026-10-01 02:15:39', '2026-10-01 02:15:39');
+INSERT INTO commentary_fts (commentary_id, title, body_markdown, author_name) VALUES ('comm-lakeman-v-commissioner-of-police-new-south-wales-police-service-2001-nswadt-128-1', 'Exceptional Circumstances Analysis under s 268(5)', 'In <a href="javascript:void(0)" onclick="scrollToParagraph(1, 1)" class="para-badge">[1]</a>, the applicant sought review of a 3-month driver licence suspension. The Tribunal considered the meaning of **exceptional circumstances** under the predecessor provisions to s 268(5) of the *Road Transport Act 2013* (NSW). See also discussion in paragraphs <a href="javascript:void(0)" onclick="scrollToParagraph(15, 22)" class="para-badge">[15]-[22]</a> regarding hardship and prior record.', 'Senior Practitioner');
+INSERT OR REPLACE INTO commentary (id, target_type, target_id, target_paragraph_start, target_paragraph_end, author_tier, author_id, author_name, author_role, title, body_markdown, body_html, visibility, status, version, created_at, updated_at) VALUES ('comm-4d5487a85c6f', 'case', '2014-nswca-161', 84, 84, 'practitioner', 'user_local', 'Practitioner', 'Practitioner', 'Appellate Ratio on Disturbance', 'The Court in [84] considered valuation principles under RTA s 53 and affirmed [2010] NSWCA 236.', '<p>The Court in <a href="#para-84" class="para-jump-link" data-jump-start="84" onclick="app.jumpToParagraph(84)" title="Jump to paragraph [84] in reader">[84]</a> considered valuation principles under <a href="#/road-transport-act-2013/s53" class="statute-link" data-act="road-transport-act-2013" data-sec="53" title="Road Transport Act 2013 section 53">RTA s 53</a> and affirmed <a href="#/cases/2010-nswca-236" class="case-cite-link" data-case-slug="2010-nswca-236" data-mnc="[2010] NSWCA 236" title="Open [2010] NSWCA 236 in Canopy">[2010] NSWCA 236</a>.</p>', 'public', 'active', 1, '2026-10-01 02:35:06', '2026-10-01 02:35:06');
+INSERT INTO commentary_fts (commentary_id, title, body_markdown, author_name) VALUES ('comm-4d5487a85c6f', 'Appellate Ratio on Disturbance', 'The Court in [84] considered valuation principles under RTA s 53 and affirmed [2010] NSWCA 236.', 'Practitioner');
+INSERT OR REPLACE INTO commentary (id, target_type, target_id, target_paragraph_start, target_paragraph_end, author_tier, author_id, author_name, author_role, title, body_markdown, body_html, visibility, status, version, created_at, updated_at) VALUES ('comm-289deb44887e', 'provision', 'road-transport-act-2013:s54', NULL, NULL, 'practitioner', 'user_local', 'Practitioner', 'Practitioner', 'Test Note', 'First or Second/Subsequent offence is defined at RTA s 9.', '<p>First or Second/Subsequent offence is defined at <a href="#/road-transport-act-2013/s9" class="statute-link" data-act="road-transport-act-2013" data-sec="9" title="Road Transport Act 2013 section 9">RTA s 9</a>.</p>', 'public', 'active', 1, '2026-10-01 03:16:33', '2026-10-01 03:16:33');
+INSERT INTO commentary_fts (commentary_id, title, body_markdown, author_name) VALUES ('comm-289deb44887e', 'Test Note', 'First or Second/Subsequent offence is defined at RTA s 9.', 'Practitioner');
+INSERT OR REPLACE INTO commentary (id, target_type, target_id, target_paragraph_start, target_paragraph_end, author_tier, author_id, author_name, author_role, title, body_markdown, body_html, visibility, status, version, created_at, updated_at) VALUES ('comm-c9b359f080b8', 'provision', 'road-transport-act-2013:s54', NULL, NULL, 'practitioner', 'user_local', 'NC', 'Practitioner', 'Second/Subseuqnet offences', 'Issue of whether a person is sentenced as first or second/subsequent offence is defined at section 9. Typically sentencing of multiple offences where no prior relevant conviction, all offences would be sentenced as first offences (albeit with aggravation). This is still preferable for defendants than where sentencing occurs on separate days as the subsequent convictions are sentenced as 2nd.', '<p>Issue of whether a person is sentenced as first or second/subsequent offence is defined at section 9. Typically sentencing of multiple offences where no prior relevant conviction, all offences would be sentenced as first offences (albeit with aggravation). This is still preferable for defendants than where sentencing occurs on separate days as the subsequent convictions are sentenced as 2nd.</p>', 'public', 'active', 1, '2026-10-01 03:19:27', '2026-10-01 03:19:27');
+INSERT INTO commentary_fts (commentary_id, title, body_markdown, author_name) VALUES ('comm-c9b359f080b8', 'Second/Subseuqnet offences', 'Issue of whether a person is sentenced as first or second/subsequent offence is defined at section 9. Typically sentencing of multiple offences where no prior relevant conviction, all offences would be sentenced as first offences (albeit with aggravation). This is still preferable for defendants than where sentencing occurs on separate days as the subsequent convictions are sentenced as 2nd.', 'NC');
+INSERT OR REPLACE INTO commentary (id, target_type, target_id, target_paragraph_start, target_paragraph_end, author_tier, author_id, author_name, author_role, title, body_markdown, body_html, visibility, status, version, created_at, updated_at) VALUES ('comm-c76b1ba2af05', 'case', '2018-nswsc-139', NULL, NULL, 'practitioner', 'user_local', 'Practitioner', 'Practitioner', 'Common citation', '[37]-[38], Frequently cited by LCJ D Price in dismissing licence appeals entirely without variation.', '<p><a href="#para-37" class="para-jump-link" data-jump-start="37" data-jump-end="38" onclick="app.jumpToParagraph(37, 38)" title="Jump to paragraphs <a href="#para-37" class="para-jump-link" data-jump-start="37" onclick="app.jumpToParagraph(37)" title="Jump to paragraph [37] in reader">[37]</a>-<a href="#para-38" class="para-jump-link" data-jump-start="38" onclick="app.jumpToParagraph(38)" title="Jump to paragraph [38] in reader">[38]</a> in reader"><a href="#para-37" class="para-jump-link" data-jump-start="37" onclick="app.jumpToParagraph(37)" title="Jump to paragraph [37] in reader">[37]</a>–<a href="#para-38" class="para-jump-link" data-jump-start="38" onclick="app.jumpToParagraph(38)" title="Jump to paragraph [38] in reader">[38]</a></a>, Frequently cited by LCJ D Price in dismissing licence appeals entirely without variation.</p>', 'public', 'active', 1, '2026-10-01 04:15:34', '2026-10-01 04:15:34');
+INSERT INTO commentary_fts (commentary_id, title, body_markdown, author_name) VALUES ('comm-c76b1ba2af05', 'Common citation', '[37]-[38], Frequently cited by LCJ D Price in dismissing licence appeals entirely without variation.', 'Practitioner');
+INSERT OR REPLACE INTO commentary (id, target_type, target_id, target_paragraph_start, target_paragraph_end, author_tier, author_id, author_name, author_role, title, body_markdown, body_html, visibility, status, version, created_at, updated_at) VALUES ('comm-a1ad0e4ebcb9', 'provision', 'road-transport-act-2013:s53', NULL, NULL, 'practitioner', 'user_local', 'NC', 'Practitioner', 'Disqualification for 53(1)(a) and 53(3)(first) offences', 'Penalties for 53(1)(a) and 53(3) (first offence) do not include a minimum or automatic disqualification period. Nevertheless, a judge can impose a discretionary disqualification pursuant to RTA s 204.', '<p>Penalties for 53(1)(a) and 53(3) (first offence) do not include a minimum or automatic disqualification period. Nevertheless, a judge can impose a discretionary disqualification pursuant to <a href="#/road-transport-act-2013/s204" class="statute-link" data-act="road-transport-act-2013" data-sec="204" title="Road Transport Act 2013 section 204">RTA s 204</a>.</p>', 'public', 'active', 1, '2026-10-01 04:35:57', '2026-10-01 04:35:57');
+INSERT INTO commentary_fts (commentary_id, title, body_markdown, author_name) VALUES ('comm-a1ad0e4ebcb9', 'Disqualification for 53(1)(a) and 53(3)(first) offences', 'Penalties for 53(1)(a) and 53(3) (first offence) do not include a minimum or automatic disqualification period. Nevertheless, a judge can impose a discretionary disqualification pursuant to RTA s 204.', 'NC');
+INSERT INTO commentary_citations (commentary_id, citation_type, cited_target_id, raw_text, created_at) VALUES ('comm-lakeman-v-commissioner-of-police-new-south-wales-police-service-2001-nswadt-128-1', 'statute', 'road-transport-act-2013:s268', 's 268(5) of Road Transport Act 2013', '2026-10-01 02:15:39');
+INSERT INTO commentary_citations (commentary_id, citation_type, cited_target_id, raw_text, created_at) VALUES ('comm-4d5487a85c6f', 'case', '2010-nswca-236', '[2010] NSWCA 236', '2026-10-01 02:35:06');
+INSERT INTO commentary_citations (commentary_id, citation_type, cited_target_id, raw_text, created_at) VALUES ('comm-4d5487a85c6f', 'statute', 'road-transport-act-2013:s53', 'RTA s 53', '2026-10-01 02:35:06');
+INSERT INTO commentary_citations (commentary_id, citation_type, cited_target_id, raw_text, created_at) VALUES ('comm-4d5487a85c6f', 'statute', 'australian-consumer-law:s53', 's 53', '2026-10-01 02:35:06');
+INSERT INTO commentary_citations (commentary_id, citation_type, cited_target_id, raw_text, created_at) VALUES ('comm-289deb44887e', 'statute', 'road-transport-act-2013:s9', 'RTA s 9', '2026-10-01 03:16:33');
+INSERT INTO commentary_citations (commentary_id, citation_type, cited_target_id, raw_text, created_at) VALUES ('comm-c9b359f080b8', 'statute', 'road-transport-act-2013:s9', 'section 9', '2026-10-01 03:19:27');
+INSERT INTO commentary_citations (commentary_id, citation_type, cited_target_id, raw_text, created_at) VALUES ('comm-a1ad0e4ebcb9', 'statute', 'road-transport-act-2013:s204', 'RTA s 204', '2026-10-01 04:35:57');
