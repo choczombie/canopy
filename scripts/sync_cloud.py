@@ -335,6 +335,7 @@ def export_static_and_d1():
     act_provs_dir.mkdir(parents=True, exist_ok=True)
 
     prov_heading_index = {}
+    provisions_search_index = []
 
     for act in acts:
         slug = act["slug"]
@@ -395,6 +396,16 @@ def export_static_and_d1():
                     sec_num = str(p.get("identifier", ""))
                     clean_sec = re.sub(r'^(s|sec|rule|cl|clause)\s*', '', sec_num, flags=re.I).strip()
                     prov_heading_index[(slug, clean_sec)] = p.get("title", "")
+                    if not is_acl:
+                        provisions_search_index.append({
+                            "provision_id": p["id"],
+                            "act_slug": slug,
+                            "act_title": act.get("short_title", ""),
+                            "jurisdiction_id": act.get("jurisdiction_id", "nsw"),
+                            "full_slug": p["full_slug"],
+                            "identifier": sec_num,
+                            "title": p.get("title", "")
+                        })
 
                     offences = lawpart_bridge.get_offences_for_provision(slug, sec_num)
                     citing_cases = citing_cases_by_prov.get((slug, clean_sec), [])
@@ -450,7 +461,25 @@ def export_static_and_d1():
             encoding="utf-8"
         )
 
-    print(f"[OK] Exported {len(acts)} TOC trees and compact provision bundles.")
+    (STATIC_DATA_DIR / "provisions-index.json").write_text(
+        json.dumps(provisions_search_index, ensure_ascii=False),
+        encoding="utf-8"
+    )
+    if lawpart_bridge.db_path and os.path.exists(lawpart_bridge.db_path):
+        lp_conn = sqlite3.connect(lawpart_bridge.db_path)
+        lp_conn.row_factory = sqlite3.Row
+        with lp_conn:
+            lp_rows = [
+                dict(r) for r in lp_conn.execute(
+                    "SELECT lawpart_code, act_name, section, variant_description, max_fine_amount, max_fine_unit, max_gaol_months FROM offence_variants"
+                ).fetchall()
+            ]
+        lp_conn.close()
+        (STATIC_DATA_DIR / "lawparts-index.json").write_text(
+            json.dumps(lp_rows, ensure_ascii=False),
+            encoding="utf-8"
+        )
+    print(f"[OK] Exported {len(acts)} TOC trees, compact provision bundles, and static search indexes.")
 
     # 4. Bulk Export Caselaw list & individual Case JSON files
     cases_list = repo.get_cases(limit=5000)

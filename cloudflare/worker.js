@@ -757,17 +757,29 @@ export default {
       return jsonResponse(caseObj);
     }
 
-    // 7. Search Endpoints (D1 FTS5 + Static Fallback)
+    // 7. Search Endpoints (D1 FTS5 + Zero-Cost Static Index Fallback)
     if (path === "/api/lawparts/search" && request.method === "GET") {
       const q = (url.searchParams.get("q") || "").trim();
-      if (!q || !env.DB_REF) return jsonResponse([]);
+      if (!q) return jsonResponse([]);
       const isNum = /^\d+$/.test(q);
-      const sql = isNum
-        ? `SELECT * FROM offence_variants WHERE lawpart_code LIKE ? LIMIT 50`
-        : `SELECT * FROM offence_variants WHERE variant_description LIKE ? OR section LIKE ? LIMIT 50`;
-      const binds = isNum ? [`${q}%`] : [`%${q}%`, `%${q}%`];
-      const { results = [] } = await env.DB_REF.prepare(sql).bind(...binds).all();
-      return jsonResponse(results);
+      if (env.DB_REF) {
+        try {
+          const sql = isNum
+            ? `SELECT * FROM offence_variants WHERE lawpart_code LIKE ? LIMIT 50`
+            : `SELECT * FROM offence_variants WHERE variant_description LIKE ? OR section LIKE ? LIMIT 50`;
+          const binds = isNum ? [`${q}%`] : [`%${q}%`, `%${q}%`];
+          const { results = [] } = await env.DB_REF.prepare(sql).bind(...binds).all();
+          if (results.length > 0) return jsonResponse(results);
+        } catch (_) {}
+      }
+      const lpIndex = (await fetchStaticJson(request, env, "/static-data/lawparts-index.json")) || [];
+      const ql = q.toLowerCase();
+      const matched = lpIndex.filter(r =>
+        isNum
+          ? String(r.lawpart_code || "").startsWith(q)
+          : (String(r.variant_description || "").toLowerCase().includes(ql) || String(r.section || "").toLowerCase().includes(ql))
+      ).slice(0, 50);
+      return jsonResponse(matched);
     }
 
     if ((path === "/api/search" || path === "/api/search/unified" || path === "/api/search/omnibox") && request.method === "GET") {
@@ -854,15 +866,38 @@ export default {
             lawparts = results;
           }
         } catch (_) {}
-      } else if (q) {
-        // Fallback metadata search over static cases-list.json if DB_REF FTS is not yet populated
+      }
+
+      // Zero-cost static index fallback whenever D1 reference tables are empty
+      if (provisions.length === 0 && q) {
+        const provIndex = (await fetchStaticJson(request, env, "/static-data/provisions-index.json")) || [];
+        const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+        provisions = provIndex.filter(p => {
+          if (actSlugFilter && p.act_slug !== actSlugFilter) return false;
+          const hay = `${p.identifier || ""} ${p.title || ""} ${p.act_title || ""}`.toLowerCase();
+          return terms.every(t => hay.includes(t));
+        }).slice(0, limit).map(p => ({ ...p, snippet: p.title }));
+      }
+
+      if (cases.length === 0 && q) {
         const allCases = (await fetchStaticJson(request, env, "/static-data/cases-list.json")) || [];
-        const ql = q.toLowerCase();
-        cases = allCases.filter(c =>
-          (c.title || "").toLowerCase().includes(ql) ||
-          (c.citation || "").toLowerCase().includes(ql) ||
-          (c.catchwords || "").toLowerCase().includes(ql)
-        ).slice(0, limit).map(c => ({ ...c, snippet: c.catchwords }));
+        const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+        cases = allCases.filter(c => {
+          const hay = `${c.title || ""} ${c.citation || ""} ${c.mnc || ""} ${c.catchwords || ""}`.toLowerCase();
+          return terms.every(t => hay.includes(t));
+        }).slice(0, limit).map(c => ({ ...c, snippet: c.catchwords }));
+      }
+
+      if (lawparts.length === 0 && (lpc || q)) {
+        const targetLp = (lpc || q).trim();
+        const isNum = /^\d+$/.test(targetLp);
+        const ql = targetLp.toLowerCase();
+        const lpIndex = (await fetchStaticJson(request, env, "/static-data/lawparts-index.json")) || [];
+        lawparts = lpIndex.filter(r =>
+          isNum
+            ? String(r.lawpart_code || "").startsWith(targetLp)
+            : (String(r.variant_description || "").toLowerCase().includes(ql) || String(r.section || "").toLowerCase().includes(ql))
+        ).slice(0, 15);
       }
 
       if (path === "/api/search") {
