@@ -663,7 +663,8 @@ export default {
         n => n.node.slug === nodeSlug || n.node.id === nodeSlug || (n.node.path_hierarchy || "").endsWith(`/${nodeSlug}`)
       );
       if (!nodeObj) return jsonResponse({ detail: "Structural node not found" }, 404);
-      return jsonResponse(nodeObj);
+      const hydratedProvs = nodeObj.provisions || (nodeObj.provision_slugs || []).map(k => bundle.provisions[k]).filter(Boolean);
+      return jsonResponse({ ...nodeObj, provisions: hydratedProvs });
     }
 
     const actProvSubMatch = path.match(/^\/api\/acts\/([^/]+)\/provisions\/(.+?)(?:\/(info|lawparts|cases))?$/);
@@ -678,7 +679,9 @@ export default {
       }
 
       const bareSlug = fullSlug.split("/").pop();
-      const prov = bundle.provisions[fullSlug] || bundle.provisions[bareSlug] || bundle.provisions[`s${bareSlug}`] || bundle.provisions[`r${bareSlug}`];
+      const aliases = bundle.slug_aliases || {};
+      const resolvedKey = aliases[fullSlug] || aliases[bareSlug] || aliases[`s${bareSlug}`] || aliases[`r${bareSlug}`] || fullSlug;
+      const prov = bundle.provisions[resolvedKey] || bundle.provisions[fullSlug] || bundle.provisions[bareSlug] || bundle.provisions[`s${bareSlug}`] || bundle.provisions[`r${bareSlug}`];
       if (!prov) {
         return jsonResponse({ detail: `Provision '${fullSlug}' not found in '${actSlug}'` }, 404);
       }

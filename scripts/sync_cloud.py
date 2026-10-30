@@ -308,11 +308,33 @@ def export_static_and_d1():
     (STATIC_DATA_DIR / "stats.json").write_text(json.dumps(stats_payload, ensure_ascii=False), encoding="utf-8")
     print(f"[OK] Exported {len(acts)} statutes metadata and platform stats.")
 
+    # Pre-index citing cases by (act_slug, clean_section) for instant O(1) lookup
+    citing_cases_by_prov = {}
+    if os.path.exists(repo.caselaw_db_path):
+        with repo.get_connection("caselaw") as c_conn:
+            cit_rows = c_conn.execute("""
+                SELECT sc.target_act_slug, sc.target_section, sc.paragraph_number, sc.raw_citation_text,
+                       c.id, c.citation, c.mnc, c.title, c.court, c.judgment_date, c.bench,
+                       c.catchwords, c.source_url, c.nsw_caselaw_url
+                FROM case_statute_citations sc
+                JOIN cases c ON sc.case_id = c.id
+                ORDER BY c.judgment_date DESC
+            """).fetchall()
+            for r in cit_rows:
+                rd = dict(r)
+                act_s = rd.pop("target_act_slug")
+                sec_s = re.sub(r'^(s|sec|rule|cl|clause)\s*', '', str(rd.pop("target_section") or ""), flags=re.I).strip()
+                lst = citing_cases_by_prov.setdefault((act_s, sec_s), [])
+                if len(lst) < 50:
+                    lst.append(rd)
+
     # 3. Export TOC trees & Act Provision/Node bundles
     trees_dir = STATIC_DATA_DIR / "trees"
     act_provs_dir = STATIC_DATA_DIR / "act-provisions"
     trees_dir.mkdir(parents=True, exist_ok=True)
     act_provs_dir.mkdir(parents=True, exist_ok=True)
+
+    prov_heading_index = {}
 
     for act in acts:
         slug = act["slug"]
@@ -322,12 +344,12 @@ def export_static_and_d1():
             encoding="utf-8"
         )
 
-        # Build provision & structural node map for this Act
         is_acl = slug in ("australian-consumer-law", "acl")
         target_act_slug = "competition-and-consumer-act-2010" if is_acl else slug
         conn, _ = repo.get_connection_for_act(target_act_slug)
 
         provs_map = {}
+        slug_aliases = {}
         nodes_map = {}
         with conn:
             comp = conn.execute(
@@ -362,7 +384,7 @@ def export_static_and_d1():
 
                 raw_provs = [
                     dict(r) for r in conn.execute(
-                        "SELECT * FROM provisions WHERE compilation_id = ? ORDER BY order_index ASC",
+                        "SELECT id, compilation_id, structural_node_id, provision_type, identifier, title, slug, full_slug, content_html, order_index FROM provisions WHERE compilation_id = ? ORDER BY order_index ASC",
                         (comp_id,)
                     ).fetchall()
                 ]
@@ -370,9 +392,12 @@ def export_static_and_d1():
                 for p in raw_provs:
                     if is_acl and not str(p.get("full_slug", "")).startswith("schedule-2/"):
                         continue
-                    sec_num = p.get("identifier", "")
+                    sec_num = str(p.get("identifier", ""))
+                    clean_sec = re.sub(r'^(s|sec|rule|cl|clause)\s*', '', sec_num, flags=re.I).strip()
+                    prov_heading_index[(slug, clean_sec)] = p.get("title", "")
+
                     offences = lawpart_bridge.get_offences_for_provision(slug, sec_num)
-                    citing_cases = repo.get_cases_citing_provision(slug, sec_num)
+                    citing_cases = citing_cases_by_prov.get((slug, clean_sec), [])
 
                     p_obj = {
                         **p,
@@ -390,24 +415,30 @@ def export_static_and_d1():
                             "referenced_by": []
                         }
                     }
-                    provs_map[p["full_slug"]] = p_obj
-                    provs_map[p["slug"]] = p_obj
+                    f_slug = p["full_slug"]
+                    b_slug = p["slug"]
+                    provs_map[f_slug] = p_obj
+                    if b_slug != f_slug:
+                        slug_aliases[b_slug] = f_slug
 
-                # Build structural node bundles
+                # Build structural node bundles using provision_slugs references (no HTML duplication)
                 for n in raw_nodes:
                     if is_acl and "schedule-2" not in str(n.get("path_hierarchy", "")):
                         continue
                     path_h = n["path_hierarchy"]
-                    desc_provs = [
-                        {**p, "elements": []}
+                    desc_slugs = [
+                        p["full_slug"]
                         for p in raw_provs
-                        if node_by_id.get(p["structural_node_id"], {}).get("path_hierarchy", "") == path_h
-                        or node_by_id.get(p["structural_node_id"], {}).get("path_hierarchy", "").startswith(f"{path_h}/")
+                        if (not is_acl or str(p.get("full_slug", "")).startswith("schedule-2/"))
+                        and (
+                            node_by_id.get(p["structural_node_id"], {}).get("path_hierarchy", "") == path_h
+                            or node_by_id.get(p["structural_node_id"], {}).get("path_hierarchy", "").startswith(f"{path_h}/")
+                        )
                     ]
                     n_bundle = {
                         "node": n,
                         "breadcrumbs": build_breadcrumbs(n["id"]),
-                        "provisions": desc_provs
+                        "provision_slugs": desc_slugs
                     }
                     clean_key = n["slug"].strip("/")
                     nodes_map[clean_key] = n_bundle
@@ -415,23 +446,153 @@ def export_static_and_d1():
                         nodes_map[clean_key[len("schedule-2/"):]] = n_bundle
 
         (act_provs_dir / f"{slug}.json").write_text(
-            json.dumps({"act_slug": slug, "provisions": provs_map, "nodes": nodes_map}, ensure_ascii=False),
+            json.dumps({"act_slug": slug, "provisions": provs_map, "slug_aliases": slug_aliases, "nodes": nodes_map}, ensure_ascii=False),
             encoding="utf-8"
         )
 
-    print(f"[OK] Exported {len(acts)} TOC trees and provision bundles.")
+    print(f"[OK] Exported {len(acts)} TOC trees and compact provision bundles.")
 
-    # 4. Export Caselaw list & individual Case JSON files
+    # 4. Bulk Export Caselaw list & individual Case JSON files
     cases_list = repo.get_cases(limit=5000)
     (STATIC_DATA_DIR / "cases-list.json").write_text(json.dumps(cases_list, ensure_ascii=False), encoding="utf-8")
 
     cases_dir = STATIC_DATA_DIR / "cases"
     cases_dir.mkdir(parents=True, exist_ok=True)
-    for c_meta in cases_list:
-        c_slug = c_meta["id"]
-        full_case = repo.get_case_by_slug(c_slug)
-        if full_case:
-            (cases_dir / f"{c_slug}.json").write_text(json.dumps(full_case, ensure_ascii=False), encoding="utf-8")
+
+    if os.path.exists(repo.caselaw_db_path):
+        from src.coram import parse_coram_bench
+        act_title_map = {a.get("slug"): a.get("short_title") for a in acts}
+
+        with repo.get_connection("caselaw") as c_conn:
+            all_cases = {r["id"]: dict(r) for r in c_conn.execute("SELECT * FROM cases").fetchall()}
+
+            paras_by_case = {}
+            for r in c_conn.execute("SELECT case_id, paragraph_number, page_number, content_html FROM case_paragraphs ORDER BY case_id, paragraph_number ASC"):
+                paras_by_case.setdefault(r["case_id"], []).append({
+                    "paragraph_number": r["paragraph_number"],
+                    "page_number": r["page_number"],
+                    "content_html": r["content_html"]
+                })
+
+            stat_cites_by_case = {}
+            for r in c_conn.execute("SELECT case_id, paragraph_number, target_act_slug, target_section, raw_citation_text FROM case_statute_citations"):
+                stat_cites_by_case.setdefault(r["case_id"], []).append({
+                    "paragraph_number": r["paragraph_number"],
+                    "target_act_slug": r["target_act_slug"],
+                    "target_section": r["target_section"],
+                    "raw_citation_text": r["raw_citation_text"]
+                })
+
+            sources_by_case = {}
+            for r in c_conn.execute("SELECT case_id, source_name, source_url, file_format, local_file_path, file_size_bytes, is_canonical_text FROM case_sources ORDER BY is_canonical_text DESC, id ASC"):
+                sources_by_case.setdefault(r["case_id"], []).append({
+                    "source_name": r["source_name"],
+                    "source_url": r["source_url"],
+                    "file_format": r["file_format"],
+                    "local_file_path": r["local_file_path"],
+                    "file_size_bytes": r["file_size_bytes"],
+                    "is_canonical_text": r["is_canonical_text"]
+                })
+
+            prec_by_case = {}
+            citing_by_target = {}
+            for r in c_conn.execute("""
+                SELECT cp.id, cp.case_id, cp.cited_case_title, cp.cited_case_citation, cp.target_case_id, cp.paragraph_number,
+                       c.title as target_title, c.mnc as target_mnc, c.court as target_court, c.judgment_date as target_date
+                FROM case_precedents cp
+                LEFT JOIN cases c ON cp.target_case_id = c.id
+                ORDER BY cp.paragraph_number ASC, cp.id ASC
+            """):
+                rd = dict(r)
+                prec_by_case.setdefault(rd["case_id"], []).append(rd)
+                if rd.get("target_case_id"):
+                    citing_by_target.setdefault(rd["target_case_id"], []).append(rd)
+
+            for c_slug, case_dict in all_cases.items():
+                case_dict["paragraphs"] = paras_by_case.get(c_slug, [])
+                case_dict["statute_citations"] = stat_cites_by_case.get(c_slug, [])
+                case_dict["sources"] = sources_by_case.get(c_slug, [])
+
+                # Citing decisions
+                citing_map = {}
+                for cr in citing_by_target.get(c_slug, []):
+                    src_id = cr["case_id"]
+                    src_case = all_cases.get(src_id)
+                    if not src_case:
+                        continue
+                    if src_id not in citing_map:
+                        citing_map[src_id] = {
+                            "case_id": src_id,
+                            "title": src_case.get("title") or src_case.get("citation"),
+                            "mnc": src_case.get("mnc"),
+                            "court": src_case.get("court"),
+                            "judgment_date": src_case.get("judgment_date"),
+                            "bench": src_case.get("bench"),
+                            "paragraphs": []
+                        }
+                    if cr.get("paragraph_number"):
+                        citing_map[src_id]["paragraphs"].append(cr["paragraph_number"])
+                case_dict["citing_cases"] = list(citing_map.values())
+
+                # Precedents cited
+                prec_map = {}
+                for pr in prec_by_case.get(c_slug, []):
+                    cite = (pr.get("cited_case_citation") or "").strip()
+                    title = (pr.get("cited_case_title") or "").strip()
+                    key = cite or title
+                    if not key:
+                        continue
+                    if key not in prec_map:
+                        pr_copy = {k: v for k, v in pr.items() if k != "case_id"}
+                        pr_copy["is_internal"] = bool(pr.get("target_case_id"))
+                        pr_copy["paragraphs"] = [pr["paragraph_number"]] if pr.get("paragraph_number") else []
+                        prec_map[key] = pr_copy
+                    else:
+                        if pr.get("paragraph_number") and pr["paragraph_number"] not in prec_map[key]["paragraphs"]:
+                            prec_map[key]["paragraphs"].append(pr["paragraph_number"])
+                case_dict["precedents_cited"] = list(prec_map.values())
+
+                # Grouped statutory provisions
+                grouped_stat = {}
+                for sc in case_dict["statute_citations"]:
+                    k = (sc["target_act_slug"], sc["target_section"])
+                    g = grouped_stat.setdefault(k, {"count": 0, "paras": set()})
+                    g["count"] += 1
+                    if sc.get("paragraph_number") and str(sc["paragraph_number"]).isdigit():
+                        g["paras"].add(int(sc["paragraph_number"]))
+
+                statute_provisions = []
+                for (a_slug, sec), g in sorted(grouped_stat.items(), key=lambda x: x[1]["count"], reverse=True):
+                    clean_s = re.sub(r'^(s|sec|rule|cl|clause)\s*', '', str(sec or ""), flags=re.I).strip()
+                    heading = prov_heading_index.get((a_slug, clean_s), "")
+                    a_title = act_title_map.get(a_slug) or " ".join(w.capitalize() for w in str(a_slug).split("-"))
+                    statute_provisions.append({
+                        "act_slug": a_slug,
+                        "act_title": a_title,
+                        "section": sec,
+                        "heading": heading,
+                        "is_ingested": (a_slug in act_title_map) or bool(heading),
+                        "count": g["count"],
+                        "paragraphs": sorted(list(g["paras"]))
+                    })
+                case_dict["statute_provisions"] = statute_provisions
+                case_dict["commentary"] = []
+                case_dict["referenced_by"] = []
+
+                for json_field, default_val in [("judge_opinions", []), ("structured_pages", []), ("confidence_score", {})]:
+                    raw_val = case_dict.get(json_field)
+                    if raw_val and isinstance(raw_val, str):
+                        try:
+                            case_dict[json_field] = json.loads(raw_val)
+                        except Exception:
+                            case_dict[json_field] = default_val
+                    elif not raw_val:
+                        case_dict[json_field] = default_val
+
+                case_dict["coram_list"] = parse_coram_bench(case_dict.get("bench"))
+                case_dict["is_incomplete"] = bool(case_dict.get("is_incomplete")) or (len(case_dict["paragraphs"]) <= 2)
+
+                (cases_dir / f"{c_slug}.json").write_text(json.dumps(case_dict, ensure_ascii=False), encoding="utf-8")
 
     print(f"[OK] Exported {len(cases_list)} full judicial decisions to {cases_dir}.")
 
